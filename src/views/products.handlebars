@@ -1,0 +1,220 @@
+<div class="">
+    <h1 class="">Bienvenidos al catalogo de productos</h1>
+    <div class="" id="productsDiv">
+
+    </div>
+    <div id="botones">
+
+    </div>
+    <h2>Nuevo producto</h2>
+    <form id="formNewProduct" class="">
+        <label for="title">Title:</label><input type="text" id="title" name="Title" value="" required>
+        <label for="description">Description:</label><input type="text" id="description" name="Description" value=""
+            required>
+        <label for="code">Code:</label><input type="number" id="code" name="code" value="" required>
+        <label for="price">Price:</label><input type="number" id="price" name="price" value="" required>
+        <label for="status">Status:</label><input type="checkbox" id="status" name="status" value="false">
+        <label for="stock">Stock:</label><input type="number" id="stock" name="stock" value="" required>
+        <label for="category">Category:</label><input type="text" id="category" name="category" value="" required>
+        <input type="submit" value="Subir">
+    </form>
+
+</div>
+
+<script src="../node_modules/bootstrap/dist/js/bootstrap.js" type="text/javascript"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+    (async () => {
+
+        const { value: user } = await Swal.fire({
+            title: 'Input email address',
+            input: 'email',
+            inputLabel: 'Your email address',
+            inputPlaceholder: 'Enter your email address',
+            allowOutsideClick: false
+        })
+        if (user) {
+            const socket = io()
+            socket.on('updatedProducts', async (products) => {
+                console.log(products)
+                const botonesDiv = document.getElementById('botones')
+                botonesDiv.innerHTML = ""
+                botonesDiv.className = "d-flex justify-content-center my-2"
+                const botonPageAnterior = document.createElement('a')
+                botonPageAnterior.href = products.prevLink
+                botonPageAnterior.className = "btn btn-primary mx-5"
+                botonPageAnterior.innerText = "Anterior"
+                const botonPageSiguiente = document.createElement('a')
+                botonPageSiguiente.href = products.nextLink
+                botonPageSiguiente.className = "btn btn-primary mx-5"
+                botonPageSiguiente.innerText = "Siguiente"
+                botonesDiv.append(botonPageAnterior)
+                botonesDiv.append(botonPageSiguiente)
+
+                const productList = products.payload
+                document.getElementById('productsDiv').innerHTML = ''
+                const productsDiv = document.getElementById('productsDiv')
+                productsDiv.className = "row border"
+                productsDiv.innerHTML = (`
+                        <span class="col mx-2 border-start">Title</span>
+                        <span class="col mx-2 border-start">Description</span>
+                        <span class="col mx-2 border-start">Code</span>
+                        <span class="col mx-2 border-start">Price</span>
+                        <span class="col mx-2 border-start">Status</span>
+                        <span class="col mx-2 border-start">Stock</span>
+                        <span class="col mx-2 border-start">Category</span>
+                        <span class="col mx-2 border-start">Thumbnails</span>
+                        <span class="col-2 mx-5 text-center border-start">Actions</span>
+                    `)
+                productList.forEach(async (product) => {
+                    const producto = document.createElement('div')
+                    producto.className = "row "
+                    const productId = product._id
+                    producto.innerHTML = (`
+                        
+                        <span class="col mx-2 border-start">${product.title}</span>
+                        <span class="col mx-2 border-start">${product.description}</span>
+                        <span class="col mx-2 border-start">${product.code}</span>
+                        <span class="col mx-2 border-start">${product.price}</span>
+                        <span class="col mx-2 border-start">${product.status}</span>
+                        <span class="col mx-2 border-start">${product.stock}</span>
+                        <span class="col mx-2 border-start">${product.category}</span>
+                        <span class="col mx-2 border-start">${product.thumbnails}</span>
+                    `)
+                    botonBorrar = document.createElement('button')
+                    botonBorrar.innerText = 'Borrar';
+                    botonBorrar.className = 'btn btn-danger col ms-5 me-1 pe-1'
+                    botonBorrar.addEventListener('click', async () => {
+                        const res = await fetch(`/api/products/${product._id}`, {
+                            method: "DELETE",
+
+                        });
+                        const result = await res.json();
+                        if (result.status === "error")
+                            alert(result.error)
+                        socket.emit("updatedProducts");
+                    })
+
+                    producto.append(botonBorrar)
+                    botonAgregarCart = document.createElement('button')
+                    botonAgregarCart.innerText = 'Agregar al carrito ';
+                    botonAgregarCart.className = 'btn btn-primary col ms-3 px-0'
+                    botonAgregarCart.addEventListener('click', async () => {
+                        const resultCart = await fetch("http://localhost:8080/api/cart")
+                        const dataCart = await resultCart.json()
+                        const userCart = await dataCart.payload.find(cart => cart.user === user)
+                        if (userCart == null) {
+                            await fetch("http://localhost:8080/api/cart", {
+                                method: "POST",
+                                body: JSON.stringify({ user }),
+                                headers: {
+                                    "Content-Type": "application/json",
+                                },
+                            });
+                            const resultCart = await fetch("http://localhost:8080/api/cart")
+                            const dataCart = await resultCart.json()
+                            const userCart = await dataCart.payload.find(cart => cart.user === user)
+                            userCart.products.push({
+                                product: productId,
+                                quantity: 1
+                            })
+                            const res = await fetch(`http://localhost:8080/api/cart/${userCart._id}`, {
+                                method: "PUT",
+                                body: JSON.stringify(userCart),
+                                headers: {
+                                    "Content-Type": "application/json",
+                                },
+
+                            });
+                            const result = await res.json();
+                            if (result.status === "error")
+                                alert(result.error)
+
+                        } else {
+                            let change = false
+                            for (let i = 0; i < userCart.products.length; i++) {
+                                if (userCart.products[i].product._id == productId) {
+                                    userCart.products[i].quantity += 1
+                                    change = true
+
+                                }
+                            }
+                            if (change == false) {
+
+                                userCart.products.push({
+                                    product: productId,
+                                    quantity: 1
+                                })
+                            }
+                            const res = await fetch(`http://localhost:8080/api/cart/${userCart._id}`, {
+                                method: "PUT",
+                                body: JSON.stringify(userCart),
+                                headers: {
+                                    "Content-Type": "application/json",
+                                },
+
+                            });
+                            const result = await res.json();
+                            if (result.status === "error")
+                                alert(result.error)
+                        }
+
+                    });
+                    producto.append(botonAgregarCart)
+                    productsDiv.append(producto)
+                })
+            })
+
+            const formNewProduct = document.getElementById('formNewProduct')
+
+            formNewProduct.addEventListener('submit', async function (event) {
+                event.preventDefault()
+                let title = document.getElementById('title').value
+                let description = document.getElementById('description').value
+                let code = document.getElementById('code').value
+                let price = document.getElementById('price').value
+                let status = document.getElementById('status').checked
+                let stock = document.getElementById('stock').value
+                let category = document.getElementById('category').value
+
+                const newProduct = {
+                    title,
+                    description,
+                    code,
+                    price,
+                    status,
+                    stock,
+                    category
+                }
+                const res = await fetch("/api/products", {
+                    method: "POST",
+                    body: JSON.stringify(newProduct),
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                });
+                const result = await res.json();
+                if (result.status === "error")
+                    alert(result.error)
+
+                else {
+                    socket.emit("updatedProducts");
+                    document.getElementById('title').value = ''
+                    document.getElementById('description').value = ''
+                    document.getElementById('code').value = ''
+                    document.getElementById('price').value = ''
+                    document.getElementById('status').value = ''
+                    document.getElementById('stock').value = ''
+                    document.getElementById('category').value = ''
+                }
+
+            })
+        }
+
+    })()
+
+
+
+
+</script>
